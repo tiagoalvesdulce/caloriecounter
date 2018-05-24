@@ -17,10 +17,12 @@ const (
 	ndbnoEndpoint  = "/V2/reports"
 )
 
+// USDA is an interface to hold common methods from the stuff returned by USDA API
 type USDA interface {
 	String() string
 }
 
+// FoodByNDBO is a struct to hold JSON returned by the Ndbo search endpoint
 type FoodByNDBO struct {
 	Foods []struct {
 		Food struct {
@@ -78,6 +80,7 @@ type FoodByNDBO struct {
 	API      float64 `json:"api"`
 }
 
+// SearchList is a struct to hold JSON returned by the search endpoint
 type SearchList struct {
 	List struct {
 		Q     string `json:"q"`
@@ -99,6 +102,7 @@ type SearchList struct {
 	} `json:"list"`
 }
 
+// FoodList is a struct to hold JSON returned by the list endpoint
 type FoodList struct {
 	List struct {
 		Lt    string `json:"lt"`
@@ -147,7 +151,7 @@ func (fndbo FoodByNDBO) String() string {
 	return res
 }
 
-func getApi(req *http.Request, client http.Client) []byte {
+func getAPI(req *http.Request, client http.Client) []byte {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("Error making request to API: %s\n", err)
@@ -178,7 +182,7 @@ func getFoodsList(client http.Client, max string, apiKey string) interface{} {
 
 	req.URL.RawQuery = q.Encode()
 
-	body := getApi(req, client)
+	body := getAPI(req, client)
 
 	var fl FoodList
 
@@ -204,7 +208,7 @@ func searchFood(client http.Client, food string, max string, apiKey string) inte
 
 	req.URL.RawQuery = q.Encode()
 
-	body := getApi(req, client)
+	body := getAPI(req, client)
 
 	var sl SearchList
 
@@ -231,7 +235,7 @@ func getFoodByNdbno(client http.Client, ndbno string, apiKey string) interface{}
 
 	fmt.Println(req.URL)
 
-	body := getApi(req, client)
+	body := getAPI(req, client)
 
 	var food FoodByNDBO
 
