@@ -1,20 +1,20 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"io/ioutil"
 	"encoding/json"
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
 )
 
 const (
-	apiURL = "https://api.nal.usda.gov/ndb"
+	apiURL         = "https://api.nal.usda.gov/ndb"
 	searchEndpoint = "/search/"
-	listEndpoint = "/list/"
-	ndbnoEndpoint = "/V2/reports"
+	listEndpoint   = "/list/"
+	ndbnoEndpoint  = "/V2/reports"
 )
 
 type USDA interface {
@@ -44,15 +44,15 @@ type FoodByNDBO struct {
 				Ru    string  `json:"ru"`
 			} `json:"desc"`
 			Nutrients []struct {
-				NutrientID string     `json:"nutrient_id"`
-				Name       string  `json:"name"`
-				Group      string  `json:"group"`
-				Unit       string  `json:"unit"`
-				Value      string  `json:"value"`
-				Derivation string  `json:"derivation"`
-				Sourcecode string  `json:"sourcecode"`
-				Dp         int     `json:"dp"`
-				Se         string  `json:"se"`
+				NutrientID string `json:"nutrient_id"`
+				Name       string `json:"name"`
+				Group      string `json:"group"`
+				Unit       string `json:"unit"`
+				Value      string `json:"value"`
+				Derivation string `json:"derivation"`
+				Sourcecode string `json:"sourcecode"`
+				Dp         int    `json:"dp"`
+				Se         string `json:"se"`
 				Measures   []struct {
 					Label string  `json:"label"`
 					Eqv   float64 `json:"eqv"`
@@ -120,7 +120,7 @@ func (sl SearchList) String() string {
 	for _, item := range sl.List.Item {
 		res += fmt.Sprintf("%d: {\n  Group: %s\n  Name: %s\n  Ndbno: %s\n  Database: %s\n  Manufacturer: %s\n}\n",
 			item.Offset, item.Group, item.Name, item.Ndbno, item.Ds, item.Manu)
-	} 
+	}
 	return res
 }
 
@@ -148,98 +148,98 @@ func (fndbo FoodByNDBO) String() string {
 }
 
 func getApi(req *http.Request, client http.Client) []byte {
-		resp, err := client.Do(req)
-		if err != nil {
-        log.Fatalf("Error making request to API: %s\n", err)
-		}
-		
-		defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Error making request to API: %s\n", err)
+	}
 
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-        log.Fatalf("Error reading body: %s\n", err)
-		}
+	defer resp.Body.Close()
 
-		return body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Error reading body: %s\n", err)
+	}
+
+	return body
 }
 
 func getFoodsList(client http.Client, max string, apiKey string) interface{} {
-		req, err := http.NewRequest("GET", apiURL + listEndpoint, nil)
-    if err != nil {
-        log.Fatalf("Error creating request: %s\n", err)
-    }
+	req, err := http.NewRequest("GET", apiURL+listEndpoint, nil)
+	if err != nil {
+		log.Fatalf("Error creating request: %s\n", err)
+	}
 
-    q := req.URL.Query()
-		q.Add("format", "json")
-    q.Add("lt", "f")
-    q.Add("max", max)
-    q.Add("sort", "n")
-		q.Add("api_key", apiKey)
-		
-    req.URL.RawQuery = q.Encode()		
-		
-		body := getApi(req, client)
+	q := req.URL.Query()
+	q.Add("format", "json")
+	q.Add("lt", "f")
+	q.Add("max", max)
+	q.Add("sort", "n")
+	q.Add("api_key", apiKey)
 
-		var fl FoodList
-		
-		erro := json.Unmarshal(body, &fl)
-		if erro != nil {
-        log.Fatalf("Error unmarshalling JSON: %s\n", erro)
-		}
-		return fl
+	req.URL.RawQuery = q.Encode()
+
+	body := getApi(req, client)
+
+	var fl FoodList
+
+	erro := json.Unmarshal(body, &fl)
+	if erro != nil {
+		log.Fatalf("Error unmarshalling JSON: %s\n", erro)
+	}
+	return fl
 }
 
 func searchFood(client http.Client, food string, max string, apiKey string) interface{} {
-		req, err := http.NewRequest("GET", apiURL + searchEndpoint, nil)
-    if err != nil {
-        log.Fatalf("Error creating request: %s\n", err)
-		}
-		
-		q := req.URL.Query()
-		q.Add("format", "json")
-    q.Add("sort", "r")
-		q.Add("q", food)
-		q.Add("max", max)
-		q.Add("api_key", apiKey)
-		
-    req.URL.RawQuery = q.Encode()		
-		
-		body := getApi(req, client)
+	req, err := http.NewRequest("GET", apiURL+searchEndpoint, nil)
+	if err != nil {
+		log.Fatalf("Error creating request: %s\n", err)
+	}
 
-		var sl SearchList
-		
-		erro := json.Unmarshal(body, &sl)
-		if erro != nil {
-        log.Fatalf("Error unmarshalling JSON: %s\n", erro)
-		}
-		return sl
+	q := req.URL.Query()
+	q.Add("format", "json")
+	q.Add("sort", "r")
+	q.Add("q", food)
+	q.Add("max", max)
+	q.Add("api_key", apiKey)
+
+	req.URL.RawQuery = q.Encode()
+
+	body := getApi(req, client)
+
+	var sl SearchList
+
+	erro := json.Unmarshal(body, &sl)
+	if erro != nil {
+		log.Fatalf("Error unmarshalling JSON: %s\n", erro)
+	}
+	return sl
 }
 
 func getFoodByNdbno(client http.Client, ndbno string, apiKey string) interface{} {
-		req, err := http.NewRequest("GET", apiURL + ndbnoEndpoint, nil)
-    if err != nil {
-        log.Fatalf("Error creating request: %s\n", err)
-		}
-		
-		q := req.URL.Query()
-		q.Add("format", "json")
-    q.Add("type", "b")
-		q.Add("ndbno", ndbno)
-		q.Add("api_key", apiKey)
+	req, err := http.NewRequest("GET", apiURL+ndbnoEndpoint, nil)
+	if err != nil {
+		log.Fatalf("Error creating request: %s\n", err)
+	}
 
-		req.URL.RawQuery = q.Encode()		
+	q := req.URL.Query()
+	q.Add("format", "json")
+	q.Add("type", "b")
+	q.Add("ndbno", ndbno)
+	q.Add("api_key", apiKey)
 
-		fmt.Println(req.URL)
-		
-		body := getApi(req, client)
+	req.URL.RawQuery = q.Encode()
 
-		var food FoodByNDBO
-		
-		erro := json.Unmarshal(body, &food)
-		if erro != nil {
-        log.Fatalf("Error unmarshalling JSON: %s\n", erro)
-		}
-		return food
+	fmt.Println(req.URL)
+
+	body := getApi(req, client)
+
+	var food FoodByNDBO
+
+	erro := json.Unmarshal(body, &food)
+	if erro != nil {
+		log.Fatalf("Error unmarshalling JSON: %s\n", erro)
+	}
+	return food
 }
 
 func main() {
@@ -248,14 +248,14 @@ func main() {
 	action := flag.String("action",
 		"list", "Action (list, search, get_details, add, remove, show)")
 	food := flag.String("food", "",
-		"Food to search for or to add/remove from your daily track (name, ndbno).\n" +
-		"Will be ignored if (show), (list) or (get_details) are selected on -action")
+		"Food to search for or to add/remove from your daily track (name, ndbno).\n"+
+			"Will be ignored if (show), (list) or (get_details) are selected on -action")
 	ndbno := flag.String("ndbno", "",
-		"Food Nbno to use on (get_details) action.\n" +
-		"Will be ignored if an action different of (get_details) is selected on -action")
+		"Food Nbno to use on (get_details) action.\n"+
+			"Will be ignored if an action different of (get_details) is selected on -action")
 
 	flag.Parse()
-	
+
 	apiKey := os.Getenv("USDA_API_KEY")
 	client := http.Client{}
 
