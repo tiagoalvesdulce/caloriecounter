@@ -6,6 +6,11 @@ Project developed to learn how to build a CLI using Google's Golang.
 
 `go get github.com/tiagoalvesdulce/caloriecounter`
 
+### Adding an API key
+
+Go to [USDA's website](https://ndb.nal.usda.gov/ndb/doc/index) and signup to get an API key.
+Add the API key to your environment variables calling it `USDA_API_KEY`
+
 ### Usage
 
 ```
