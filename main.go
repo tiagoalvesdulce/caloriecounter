@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 )
 
 const (
@@ -78,6 +80,17 @@ type FoodByNDBO struct {
 	Count    int     `json:"count"`
 	Notfound int     `json:"notfound"`
 	API      float64 `json:"api"`
+}
+
+// FoodToStore is the struct that will be saved as a json to a json file to save calorie intake
+type FoodToStore struct {
+	Name         string
+	Energy       float64
+	Protein      float64
+	Fat          float64
+	Carbohydrate float64
+	Fiber        float64
+	Qtd          float64
 }
 
 // SearchList is a struct to hold JSON returned by the search endpoint
@@ -219,7 +232,7 @@ func searchFood(client http.Client, food string, max string, apiKey string) inte
 	return sl
 }
 
-func getFoodByNdbno(client http.Client, ndbno string, apiKey string) interface{} {
+func getFoodByNdbno(client http.Client, ndbno string, apiKey string) FoodByNDBO {
 	req, err := http.NewRequest("GET", apiURL+ndbnoEndpoint, nil)
 	if err != nil {
 		log.Fatalf("Error creating request: %s\n", err)
@@ -246,6 +259,110 @@ func getFoodByNdbno(client http.Client, ndbno string, apiKey string) interface{}
 	return food
 }
 
+func getToday() string {
+	currentTime := time.Now().Local()
+	return currentTime.Format("2006-01-02")
+}
+
+func addFood(client http.Client, ndbno string, apiKey string, qtd string) {
+	ndbnoResult := getFoodByNdbno(client, ndbno, apiKey)
+	ndbnoToFood := make(map[string]FoodToStore)
+
+	var f FoodToStore
+
+	for _, food := range ndbnoResult.Foods {
+		f.Name = food.Food.Desc.Name
+		for _, nutrient := range food.Food.Nutrients {
+			switch nutrient.NutrientID {
+			case "208":
+				i, err := strconv.ParseFloat(nutrient.Value, 16)
+				if err != nil {
+					log.Fatalf("Error converting string to int %s\n", err)
+				}
+				f.Energy = i
+			case "203":
+				i, err := strconv.ParseFloat(nutrient.Value, 16)
+				if err != nil {
+					log.Fatalf("Error converting string to int %s\n", err)
+				}
+				f.Protein = i
+			case "204":
+				i, err := strconv.ParseFloat(nutrient.Value, 16)
+				if err != nil {
+					log.Fatalf("Error converting string to int %s\n", err)
+				}
+				f.Fat = i
+			case "205":
+				i, err := strconv.ParseFloat(nutrient.Value, 16)
+				if err != nil {
+					log.Fatalf("Error converting string to int %s\n", err)
+				}
+				f.Carbohydrate = i
+			case "291":
+				i, err := strconv.ParseFloat(nutrient.Value, 16)
+				if err != nil {
+					log.Fatalf("Error converting string to int %s\n", err)
+				}
+				f.Fiber = i
+			}
+		}
+	}
+
+	dayToFoods := make(map[string]map[string]FoodToStore)
+
+	if _, err := os.Stat("./calorietracker.json"); err == nil {
+		raw, err := ioutil.ReadFile("./calorietracker.json")
+		if err != nil {
+			log.Fatalf("Could not read calorietracker.json %s\n", err)
+		}
+		json.Unmarshal(raw, &dayToFoods)
+	}
+
+	today := getToday()
+	fmt.Println(today)
+
+	i, err := strconv.ParseFloat(qtd, 16)
+	if err != nil {
+		log.Fatalf("Error converting string to int %s\n", err)
+	}
+
+	if _, ok := dayToFoods[today]; !ok {
+		// there is not previous data in that day
+		// just point the key[date] to FoodByNdbno struct
+		f.Qtd = i
+		ndbnoToFood[ndbno] = f
+		dayToFoods[today] = ndbnoToFood
+	} else {
+		// there is previous data for the day
+		// verify if it already has the specific food entry
+		if _, ok2 := dayToFoods[today][ndbno]; !ok2 {
+			// if it doesnt't have, create one map and point dayToFoods[day] to it
+			f.Qtd = i
+			ndbnoToFood[ndbno] = f
+			dayToFoods[today] = ndbnoToFood
+		} else {
+			// if it has, just add to the Qtd
+			temp := dayToFoods[today][ndbno]
+			temp.Qtd = temp.Qtd + i
+			dayToFoods[today][ndbno] = temp
+		}
+	}
+
+	b, err := json.MarshalIndent(dayToFoods, "", "\t")
+	if err != nil {
+		log.Fatalf("Error Marshalling struct into json %s\n", err)
+	}
+
+	fmt.Printf("%+v\n\n", string(b[:]))
+
+	err = ioutil.WriteFile("calorietracker.json", b, 0644)
+	if err != nil {
+		log.Fatalf("Error writing json to file %s\n", err)
+	}
+
+	return
+}
+
 func main() {
 	max := flag.String("max", "50",
 		"Maximum number of items to return\n")
@@ -257,13 +374,14 @@ func main() {
 	ndbno := flag.String("ndbno", "",
 		"Food Nbno to use on (get_details) action.\n"+
 			"Will be ignored if an action different of (get_details) is selected on -action")
+	qtd := flag.String("qtd", "",
+		"Weight of food consumed in grams (g).\n"+
+			"Will be ignored if an action different of (add) is selected on -action")
 
 	flag.Parse()
 
 	apiKey := os.Getenv("USDA_API_KEY")
 	client := http.Client{}
-
-	fmt.Println(*ndbno)
 
 	switch *action {
 	case "list":
@@ -275,7 +393,9 @@ func main() {
 	case "get_details":
 		ndbnoResult := getFoodByNdbno(client, *ndbno, apiKey)
 		fmt.Printf("%+v", ndbnoResult)
-	case "add", "remove", "show":
+	case "add":
+		addFood(client, *ndbno, apiKey, *qtd)
+	case "remove", "show":
 		fmt.Printf("Not implemented yet :(\nWant to contribute?\nGo to: https://github.com/tiagoalvesdulce/caloriecounter\n\n")
 	default:
 		fmt.Println("Invalid action.\nValid actions are: (list, search, add, remove, show)")
