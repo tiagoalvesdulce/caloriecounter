@@ -264,7 +264,59 @@ func getToday() string {
 	return currentTime.Format("2006-01-02")
 }
 
-func addFood(client http.Client, ndbno string, apiKey string, qtd string) {
+func removeFoodEntry(ndbno string) {
+	dayToFoods := make(map[string]map[string]FoodToStore)
+	date := getToday()
+	if _, err := os.Stat("./calorietracker.json"); err == nil {
+		raw, err := ioutil.ReadFile("./calorietracker.json")
+		if err != nil {
+			log.Fatalf("Could not read calorietracker.json %s\n", err)
+		}
+		json.Unmarshal(raw, &dayToFoods)
+	} else {
+		log.Fatalf("There is no calorietracker.json file to read %s\n", err)
+	}
+	if val, ok := dayToFoods[date]; ok {
+		delete(val, ndbno)
+		fmt.Println("Erased food record")
+		b, err := json.MarshalIndent(dayToFoods, "", "\t")
+		if err != nil {
+			log.Fatalf("Error Marshalling struct into json %s\n", err)
+		}
+
+		err = ioutil.WriteFile("calorietracker.json", b, 0644)
+		if err != nil {
+			log.Fatalf("Error writing json to file %s\n", err)
+		}
+	} else {
+		log.Fatalf("There is no record for the requested day")
+	}
+}
+
+func showDayData(date string) {
+	dayToFoods := make(map[string]map[string]FoodToStore)
+	if _, err := os.Stat("./calorietracker.json"); err == nil {
+		raw, err := ioutil.ReadFile("./calorietracker.json")
+		if err != nil {
+			log.Fatalf("Could not read calorietracker.json %s\n", err)
+		}
+		json.Unmarshal(raw, &dayToFoods)
+	} else {
+		log.Fatalf("There is no calorietracker.json file to read %s\n", err)
+	}
+	if val, ok := dayToFoods[date]; ok {
+		b, err := json.MarshalIndent(val, "", "\t")
+		if err != nil {
+			log.Fatalf("Error Marshalling struct into json %s\n", err)
+		}
+
+		fmt.Printf("%+v\n", string(b[:]))
+	} else {
+		log.Fatalf("There is no record for the requested day")
+	}
+}
+
+func addFood(client http.Client, ndbno string, apiKey string, qtd float64) {
 	ndbnoResult := getFoodByNdbno(client, ndbno, apiKey)
 	ndbnoToFood := make(map[string]FoodToStore)
 
@@ -321,15 +373,10 @@ func addFood(client http.Client, ndbno string, apiKey string, qtd string) {
 	today := getToday()
 	fmt.Println(today)
 
-	i, err := strconv.ParseFloat(qtd, 16)
-	if err != nil {
-		log.Fatalf("Error converting string to int %s\n", err)
-	}
-
 	if _, ok := dayToFoods[today]; !ok {
 		// there is not previous data in that day
 		// just point the key[date] to FoodByNdbno struct
-		f.Qtd = i
+		f.Qtd = qtd
 		ndbnoToFood[ndbno] = f
 		dayToFoods[today] = ndbnoToFood
 	} else {
@@ -337,13 +384,13 @@ func addFood(client http.Client, ndbno string, apiKey string, qtd string) {
 		// verify if it already has the specific food entry
 		if _, ok2 := dayToFoods[today][ndbno]; !ok2 {
 			// if it doesnt't have, create one map and point dayToFoods[day] to it
-			f.Qtd = i
+			f.Qtd = qtd
 			ndbnoToFood[ndbno] = f
 			dayToFoods[today] = ndbnoToFood
 		} else {
 			// if it has, just add to the Qtd
 			temp := dayToFoods[today][ndbno]
-			temp.Qtd = temp.Qtd + i
+			temp.Qtd = temp.Qtd + qtd
 			dayToFoods[today][ndbno] = temp
 		}
 	}
@@ -352,8 +399,6 @@ func addFood(client http.Client, ndbno string, apiKey string, qtd string) {
 	if err != nil {
 		log.Fatalf("Error Marshalling struct into json %s\n", err)
 	}
-
-	fmt.Printf("%+v\n\n", string(b[:]))
 
 	err = ioutil.WriteFile("calorietracker.json", b, 0644)
 	if err != nil {
@@ -371,10 +416,14 @@ func main() {
 	food := flag.String("food", "",
 		"Food to search for or to add/remove from your daily track (name, ndbno).\n"+
 			"Will be ignored if (show), (list) or (get_details) are selected on -action")
+	day := flag.String("day", "",
+		"Food to search for or to add/remove from your daily track (name, ndbno).\n"+
+			"Format: yyyy-mm-dd\n"+
+			"Will be ignored if an action different of (show) is selected on -action")
 	ndbno := flag.String("ndbno", "",
 		"Food Nbno to use on (get_details) action.\n"+
-			"Will be ignored if an action different of (get_details) is selected on -action")
-	qtd := flag.String("qtd", "",
+			"Will be ignored if an action different of (get_details) or (add) is selected on -action")
+	qtd := flag.Float64("qtd", 100,
 		"Weight of food consumed in grams (g).\n"+
 			"Will be ignored if an action different of (add) is selected on -action")
 
@@ -395,8 +444,10 @@ func main() {
 		fmt.Printf("%+v", ndbnoResult)
 	case "add":
 		addFood(client, *ndbno, apiKey, *qtd)
-	case "remove", "show":
-		fmt.Printf("Not implemented yet :(\nWant to contribute?\nGo to: https://github.com/tiagoalvesdulce/caloriecounter\n\n")
+	case "show":
+		showDayData(*day)
+	case "remove":
+		removeFoodEntry(*ndbno)
 	default:
 		fmt.Println("Invalid action.\nValid actions are: (list, search, add, remove, show)")
 		os.Exit(1)
